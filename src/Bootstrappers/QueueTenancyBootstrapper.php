@@ -44,7 +44,7 @@ class QueueTenancyBootstrapper implements TenancyBootstrapper
      */
     public static function __constructStatic(Application $app)
     {
-        static::setUpJobListener($app->make(Dispatcher::class));
+        static::setUpJobListener($app->make(Dispatcher::class, $app->runningUnitTests()));
     }
 
     public function __construct(Repository $config, QueueManager $queue)
@@ -55,7 +55,7 @@ class QueueTenancyBootstrapper implements TenancyBootstrapper
         $this->setUpPayloadGenerator();
     }
 
-    protected static function setUpJobListener($dispatcher)
+    protected static function setUpJobListener($dispatcher, bool $runningTests)
     {
         $previousTenant = null;
 
@@ -71,8 +71,11 @@ class QueueTenancyBootstrapper implements TenancyBootstrapper
             static::initializeTenancyForQueue($event->payload()['tenant_id'] ?? null);
         });
 
-        $revertToPreviousState = function ($event) use (&$previousTenant) {
-            static::revertToPreviousState($event, $previousTenant);
+         // If we're running tests, we make sure to clean up after any artisan('queue:work') calls
+        $revertToPreviousState = function ($event) use (&$previousTenant, $runningTests) {
+            if ($runningTests) {
+                static::revertToPreviousState($event, $previousTenant);
+            }
         };
 
         $dispatcher->listen(JobProcessed::class, $revertToPreviousState); // artisan('queue:work') which succeeds
@@ -90,6 +93,27 @@ class QueueTenancyBootstrapper implements TenancyBootstrapper
             return;
         }
 
+        if (static::$forceRefresh) {
+            // Re-initialize tenancy between all jobs
+            if (tenancy()->initialized) {
+                tenancy()->end();
+            }
+
+            tenancy()->initialize(tenancy()->find($tenantId));
+
+            return;
+        }
+
+        if (tenancy()->initialized) {
+            // Tenancy is already initialized
+            if (tenant()->getTenantKey() === $tenantId) {
+                // It's initialized for the same tenant (e.g. dispatchNow was used, or the previous job also ran for this tenant)
+                return;
+            }
+        }
+        
+        // Tenancy was either not initialized, or initialized for a different tenant.
+        // Therefore, we initialize it for the correct tenant.
         tenancy()->initialize(tenancy()->find($tenantId));
     }
 
