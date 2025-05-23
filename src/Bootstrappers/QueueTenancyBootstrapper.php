@@ -44,7 +44,7 @@ class QueueTenancyBootstrapper implements TenancyBootstrapper
      */
     public static function __constructStatic(Application $app)
     {
-        static::setUpJobListener($app->make(Dispatcher::class, $app->runningUnitTests()));
+        static::setUpJobListener($app->make(Dispatcher::class), $app->runningUnitTests());
     }
 
     public function __construct(Repository $config, QueueManager $queue)
