@@ -9,7 +9,7 @@ use Stancl\Tenancy\Database\Concerns\HasDatabase;
 use Stancl\Tenancy\Database\Concerns\HasDomains;
 use Stancl\Tenancy\Database\Models;
 
-class Tenant extends Models\Tenant implements TenantWithDatabase
+class Tenant extends Stancl\Tenancy\Tenant implements TenantWithDatabase
 {
     use HasDatabase, HasDomains;
 }
